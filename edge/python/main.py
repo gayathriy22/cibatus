@@ -5,9 +5,9 @@ import time
 
 from arduino.app_utils import *
 
-BASE_URL = "https://197d-128-199-12-13.ngrok-free.app"
-ENDPOINT = "/test_post"
-PAYLOAD = "{}"
+API_BASE_URL = "https://380e-128-199-12-13.ngrok-free.app"
+GET_QUEUE_ENDPOINT = "/edge/get_queue"
+SET_HANDLED_ENDPOINT = "/edge/set_handled"
 POLL_INTERVAL_SECONDS = 30
 
 
@@ -17,57 +17,99 @@ def _join_url(base_url, endpoint):
     return parse.urljoin(base.rstrip("/") + "/", path.lstrip("/"))
 
 
-def _payload_to_bytes(payload):
-    text = str(payload or "").strip()
-    if not text:
-        return b"{}"
+def _request_json(method, endpoint, payload=None):
+    target_url = _join_url(API_BASE_URL, endpoint)
+    body = None
+    headers = {}
 
-    try:
-        parsed = json.loads(text)
-        return json.dumps(parsed).encode("utf-8")
-    except json.JSONDecodeError:
-        return text.encode("utf-8")
-
-
-def _post_once(base_url, endpoint, payload):
-    target_url = _join_url(base_url, endpoint)
-    body = _payload_to_bytes(payload)
+    if payload is not None:
+        body = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
 
     req = request.Request(
         url=target_url,
         data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
+        headers=headers,
+        method=method,
     )
 
+    with request.urlopen(req, timeout=10) as res:
+        status = res.getcode()
+        text = res.read().decode("utf-8").strip()
+        data = json.loads(text) if text else None
+        print(f"[poller] {method} {target_url} -> {status}")
+        return status, data
+
+
+def _get_next_queue_item():
     try:
-        with request.urlopen(req, timeout=10) as res:
-            status = res.getcode()
-            print(f"[poller] POST {target_url} -> {status}")
+        _, data = _request_json("GET", GET_QUEUE_ENDPOINT)
+    except error.HTTPError as exc:
+        print(f"[poller] GET queue HTTP error {exc.code}: {exc}")
+        return None
+    except error.URLError as exc:
+        print(f"[poller] GET queue URL error: {exc}")
+        return None
+    except Exception as exc:
+        print(f"[poller] GET queue unexpected error: {exc}")
+        return None
+
+    if not isinstance(data, list) or len(data) == 0:
+        return None
+    return data[0]
+
+
+def _set_handled(item_id):
+    try:
+        _request_json("POST", SET_HANDLED_ENDPOINT, {"id": item_id})
         return True
     except error.HTTPError as exc:
-        print(f"[poller] HTTP error {exc.code} for {target_url}: {exc}")
+        print(f"[poller] set_handled HTTP error {exc.code}: {exc}")
     except error.URLError as exc:
-        print(f"[poller] URL error for {target_url}: {exc}")
+        print(f"[poller] set_handled URL error: {exc}")
     except Exception as exc:
-        print(f"[poller] Unexpected error for {target_url}: {exc}")
-
+        print(f"[poller] set_handled unexpected error: {exc}")
     return False
 
 
-def _poll_and_blink_loop():
+def _arduino_ack_is_success(ack):
+    if ack is True:
+        return True
+    if isinstance(ack, str):
+        return ack.strip().lower() in ("true", "1", "ok", "success")
+    return False
+
+
+def _poll_loop():
     while True:
-        ok = _post_once(BASE_URL, ENDPOINT, PAYLOAD)
-        if ok:
-            try:
-                Bridge.call("blink_led_once", True)
-                print("[poller] Triggered blink_led_once over Bridge")
-            except Exception as exc:
-                print(f"[poller] Bridge call failed: {exc}")
+        item = _get_next_queue_item()
+        if item is None:
+            print("[poller] queue empty")
+            time.sleep(POLL_INTERVAL_SECONDS)
+            continue
+
+        item_id = item.get("id") if isinstance(item, dict) else None
+        if item_id is None:
+            print("[poller] first queue item missing 'id'")
+            time.sleep(POLL_INTERVAL_SECONDS)
+            continue
+
+        try:
+            ack = Bridge.call("pulse_mosfet", True)
+            print(f"[poller] Bridge pulse_mosfet ack: {ack}")
+        except Exception as exc:
+            print(f"[poller] Bridge call failed: {exc}")
+            time.sleep(POLL_INTERVAL_SECONDS)
+            continue
+
+        if _arduino_ack_is_success(ack):
+            _set_handled(item_id)
+        else:
+            print("[poller] Arduino did not ack success; skipping set_handled")
 
         time.sleep(POLL_INTERVAL_SECONDS)
 
 
-threading.Thread(target=_poll_and_blink_loop, daemon=True).start()
+threading.Thread(target=_poll_loop, daemon=True).start()
 
 App.run()
