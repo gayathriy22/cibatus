@@ -1,11 +1,17 @@
 import os
 from pathlib import Path
+import importlib
 
 from dotenv import load_dotenv
 from flask import Flask
 from supabase import create_client
 
 load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
+
+BLUEPRINTS = [
+    "test",
+    "users",
+]
 
 
 def create_app():
@@ -34,9 +40,10 @@ def create_app():
     app.config["SUPABASE_CLIENT"] = supabase
     app.config["SUPABASE_CONFIG_ERROR"] = supabase_config_error
 
-    from test import test_bp
+    for blueprint in BLUEPRINTS:
+        blueprint_module = importlib.import_module(f"endpoints.{blueprint}")
+        app.register_blueprint(getattr(blueprint_module, f"{blueprint}_bp"))
 
-    app.register_blueprint(test_bp)
     return app
 
 
