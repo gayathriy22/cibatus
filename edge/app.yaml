@@ -1,6 +1,6 @@
-name: Blink LED with UI
-icon: 💡
-description: Blink an LED via microcontroller using RPC calls
+name: Cibatus pump control
+icon: 💧
+description: Poll the database and control the pumps
 
 bricks:
   - arduino:web_ui
