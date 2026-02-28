@@ -4,6 +4,6 @@ from .setup import setup_blueprint
 users_bp = setup_blueprint("users")
 
 @users_bp.route("/users/all")
-def users_all():
+def users_get_all():
     response = g.supabase.table("users").select("*").execute()
     return jsonify(response.data)
