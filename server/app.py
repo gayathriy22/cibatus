@@ -13,6 +13,7 @@ BLUEPRINTS = [
     "test",
     "users",
     "api",
+    "edge_test",
 ]
 
 
