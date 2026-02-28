@@ -4,6 +4,7 @@ import importlib
 
 from dotenv import load_dotenv
 from flask import Flask
+from flask_cors import CORS
 from supabase import create_client
 
 load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
@@ -11,12 +12,14 @@ load_dotenv(dotenv_path=Path(__file__).with_name(".env"))
 BLUEPRINTS = [
     "test",
     "users",
+    "api",
 ]
 
 
 def create_app():
     app = Flask(__name__)
-
+    CORS(app, origins=["*"], allow_headers=["Content-Type", "Authorization"])
+    load_dotenv()
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
