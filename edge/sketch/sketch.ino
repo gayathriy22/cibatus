@@ -1,26 +1,33 @@
 #include <Arduino_RouterBridge.h>
 
 // Digital output used to drive the MOSFET gate.
-static const uint8_t MOSFET_PIN = 8;
+static const uint8_t PURE_PUMP_PIN = 7;
+static const uint8_t LIGHT_NUTRIENT_PUMP_PIN = 8;
 
-bool pulse_mosfet(bool should_pulse) {
-  if (!should_pulse) {
-    return false;
-  }
+bool run_pure_pump(int durationMs) {
+  digitalWrite(PURE_PUMP_PIN, HIGH);
+  delay(durationMs);
+  digitalWrite(PURE_PUMP_PIN, LOW);
+  return true;
+}
 
-  digitalWrite(MOSFET_PIN, HIGH);
-  delay(1000);
-  digitalWrite(MOSFET_PIN, LOW);
+bool run_light_nutrient_pump(int durationMs) {
+  digitalWrite(LIGHT_NUTRIENT_PUMP_PIN, HIGH);
+  delay(durationMs);
+  digitalWrite(LIGHT_NUTRIENT_PUMP_PIN, LOW);
   return true;
 }
 
 void setup() {
   Serial.begin(115200);
-  pinMode(MOSFET_PIN, OUTPUT);
-  digitalWrite(MOSFET_PIN, LOW);
+  pinMode(PURE_PUMP_PIN, OUTPUT);
+  pinMode(LIGHT_NUTRIENT_PUMP_PIN, OUTPUT);
+  digitalWrite(PURE_PUMP_PIN, LOW);
+  digitalWrite(LIGHT_NUTRIENT_PUMP_PIN, LOW);
 
   Bridge.begin();
-  Bridge.provide("pulse_mosfet", pulse_mosfet);
+  Bridge.provide("run_pure_pump", run_pure_pump);
+  Bridge.provide("run_light_nutrient_pump", run_light_nutrient_pump);
   Serial.println("Bridge initialized");
 }
 
