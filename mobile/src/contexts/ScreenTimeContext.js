@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import {
+  getInstalledApplications,
   screenTimeService,
   setSimulatedBreakdown,
   setSimulatedMinutes,
@@ -18,6 +19,7 @@ export function ScreenTimeProvider({ children }) {
   const getTodayTotalMinutes = useCallback(() => screenTimeService.getTodayTotalMinutes(), []);
   const getTodayPickups = useCallback(() => screenTimeService.getTodayPickups(), []);
   const getPerAppBreakdown = useCallback((apps) => screenTimeService.getPerAppBreakdown(apps), []);
+  const getInstalledApps = useCallback(() => getInstalledApplications(), []);
 
   const simulateMinutes = useCallback(async (minutes) => {
     await setSimulatedMinutes(minutes);
@@ -42,6 +44,7 @@ export function ScreenTimeProvider({ children }) {
       getTodayTotalMinutes,
       getTodayPickups,
       getPerAppBreakdown,
+      getInstalledApplications: getInstalledApps,
       simulateMinutes,
       simulatePickups,
       simulateBreakdown,
@@ -51,6 +54,7 @@ export function ScreenTimeProvider({ children }) {
       getTodayTotalMinutes,
       getTodayPickups,
       getPerAppBreakdown,
+      getInstalledApps,
       simulateMinutes,
       simulatePickups,
       simulateBreakdown,

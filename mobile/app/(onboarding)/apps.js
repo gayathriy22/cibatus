@@ -1,41 +1,62 @@
 import { router } from 'expo-router';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { useOnboarding } from '@/contexts/OnboardingContext';
+import { useScreenTime } from '@/contexts/ScreenTimeContext';
 import { colors, spacing, typography } from '@/theme/tokens';
-
-const APP_OPTIONS = ['Twitch', 'Instagram', 'Canvas', 'Messages'];
 
 export default function AppsScreen() {
   const { appsToTrack, setAppsToTrack } = useOnboarding();
+  const { getInstalledApplications } = useScreenTime();
+  const [installedApps, setInstalledApps] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const toggle = (app) => {
-    if (appsToTrack.includes(app)) {
-      setAppsToTrack(appsToTrack.filter((a) => a !== app));
+  useEffect(() => {
+    getInstalledApplications()
+      .then((apps) => setInstalledApps(Array.isArray(apps) ? apps : []))
+      .catch(() => setInstalledApps([]))
+      .finally(() => setLoading(false));
+  }, [getInstalledApplications]);
+
+  const toggle = (bundleId) => {
+    if (appsToTrack.includes(bundleId)) {
+      setAppsToTrack(appsToTrack.filter((id) => id !== bundleId));
     } else {
-      setAppsToTrack([...appsToTrack, app]);
+      setAppsToTrack([...appsToTrack, bundleId]);
     }
   };
 
   const next = () => router.push('/(onboarding)/plant-name');
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Pick apps to track</Text>
-      <Text style={styles.subtitle}>Select the apps you want to limit.</Text>
+      <Text style={styles.subtitle}>Select the apps you want to limit. (Using dummy list for development.)</Text>
 
       <View style={styles.list}>
-        {APP_OPTIONS.map((app) => {
-          const selected = appsToTrack.includes(app);
+        {installedApps.map((app) => {
+          const bundleId = app.bundleIdentifier || app.bundle_id;
+          const displayName = app.displayName || app.display_name || bundleId || 'App';
+          const selected = appsToTrack.includes(bundleId);
           return (
             <TouchableOpacity
-              key={app}
-              onPress={() => toggle(app)}
+              key={bundleId}
+              onPress={() => toggle(bundleId)}
               style={[styles.item, selected && styles.itemSelected]}
               activeOpacity={0.7}
             >
-              <Text style={[styles.itemText, selected && styles.itemTextSelected]}>{app}</Text>
+              <Text style={[styles.itemText, selected && styles.itemTextSelected]} numberOfLines={1}>
+                {displayName}
+              </Text>
               {selected ? <Text style={styles.check}>✓</Text> : null}
             </TouchableOpacity>
           );
@@ -89,4 +110,5 @@ const styles = StyleSheet.create({
   itemTextSelected: { fontWeight: '600', color: colors.primary },
   check: { color: colors.primary, fontSize: 18, fontWeight: '700' },
   button: { marginTop: 'auto', marginBottom: spacing.xl },
+  loader: { marginTop: spacing.xxl },
 });
