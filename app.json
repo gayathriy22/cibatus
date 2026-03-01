@@ -1,0 +1,8 @@
+{
+  "android": {
+    "package": "com.anonymous.cibatus"
+  },
+  "ios": {
+    "bundleIdentifier": "com.anonymous.cibatus"
+  }
+}

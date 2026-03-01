@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "react-native-screen-time": "github:Lioruby/react-native-screen-time",
+    "expo": "~53.0.27",
+    "react": "19.0.0",
+    "react-native": "0.79.6"
+  },
+  "name": "cibatus",
+  "version": "1.0.0",
+  "scripts": {
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  }
+}
