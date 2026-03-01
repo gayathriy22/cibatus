@@ -1,0 +1,6 @@
+name: Cibatus pump control
+icon: 💧
+description: Poll the database and control the pumps
+
+bricks:
+  - arduino:web_ui

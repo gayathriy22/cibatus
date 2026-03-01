@@ -13,6 +13,8 @@ BLUEPRINTS = [
     "test",
     "users",
     "api",
+    "edge_test",
+    "admin",
 ]
 
 def create_app():
