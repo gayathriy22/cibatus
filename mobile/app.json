@@ -31,6 +31,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Cibatus to use your camera to scan your plant QR code."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Allow Cibatus to access your photos to set your plant image.",

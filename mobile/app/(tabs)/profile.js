@@ -1,7 +1,8 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
-import React, { useState } from 'react';
+import { useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
+import React, { useState } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
   ScrollView,
@@ -9,30 +10,19 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button } from '@/components/Button';
-import { useUserProfile } from '@/hooks/useUserProfile';
-import { disconnectPlant } from '@/lib/db';
-import { supabase } from '@/lib/supabase';
-import { getAppIconSource } from '@/lib/appIcons';
-import { DUMMY_INSTALLED_APPS } from '@/lib/screenTime';
-import { colors, spacing, typography } from '@/theme/tokens';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Button } from "@/components/Button";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { disconnectPlant } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
+import { getAppIconSource } from "@/lib/appIcons";
+import { DUMMY_INSTALLED_APPS } from "@/lib/screenTime";
+import { colors, spacing, typography } from "@/theme/tokens";
 
-/** Dummy API calls for profile actions (to be replaced with real endpoints). */
+const BASE = process.env.EXPO_PUBLIC_API_URL ?? "";
+
 async function dummySelectTodayScreenTime(minutes) {
-  await new Promise((r) => setTimeout(r, 100));
-  return { ok: true };
-}
-async function dummyWaterPlant() {
-  await new Promise((r) => setTimeout(r, 100));
-  return { ok: true };
-}
-async function dummyKillPlant() {
-  await new Promise((r) => setTimeout(r, 100));
-  return { ok: true };
-}
-async function dummyResetKillPlant() {
   await new Promise((r) => setTimeout(r, 100));
   return { ok: true };
 }
@@ -46,7 +36,9 @@ function formatMinutesAsHoursAndMinutes(totalMinutes) {
   if (totalMinutes < 60) return `${totalMinutes} min`;
   const h = Math.floor(totalMinutes / 60);
   const m = Math.round(totalMinutes % 60);
-  return m > 0 ? `${h} hr${h !== 1 ? 's' : ''} ${m} min` : `${h} hr${h !== 1 ? 's' : ''}`;
+  return m > 0
+    ? `${h} hr${h !== 1 ? "s" : ""} ${m} min`
+    : `${h} hr${h !== 1 ? "s" : ""}`;
 }
 
 export default function ProfileScreen() {
@@ -54,41 +46,129 @@ export default function ProfileScreen() {
   const { profile, session } = useUserProfile();
   const queryClient = useQueryClient();
   const [todayMinutes, setTodayMinutes] = useState(60);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const MAX_SLIDER_MINUTES = 24 * 60; // 24 hours
-  const extraTop = Dimensions.get('window').height * 0.05;
+  const extraTop = Dimensions.get("window").height * 0.05;
 
   const handleSelectScreenTime = async () => {
     await dummySelectTodayScreenTime(todayMinutes);
   };
+  const plantUid = profile?.plant_uid;
+  const dailyGoalHours = profile?.daily_time_goal ?? 0;
+  const dailyGoalMinutes = dailyGoalHours * 60;
+
+  const callAdminEndpoint = async (path, payload) => {
+    if (!BASE) return { ok: false, error: "Missing EXPO_PUBLIC_API_URL" };
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token ?? null;
+    if (!token) return { ok: false, error: "Not authenticated" };
+    try {
+      const res = await fetch(`${BASE.replace(/\/$/, "")}${path}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const text = await res.text();
+      let json = null;
+      if (text) {
+        try {
+          json = JSON.parse(text);
+        } catch {
+          json = null;
+        }
+      }
+      if (!res.ok) {
+        const message =
+          (json && (json.detail || json.error)) ||
+          text ||
+          res.statusText ||
+          "Request failed.";
+        return { ok: false, error: message };
+      }
+      return { ok: true, data: json };
+    } catch (e) {
+      return { ok: false, error: e?.message || "Network error." };
+    }
+  };
+
   const handleWaterPlant = async () => {
-    await dummyWaterPlant();
+    if (isActionLoading) return;
+    if (!plantUid) {
+      Alert.alert("No plant", "You need a linked plant to use this action.");
+      return;
+    }
+    if (!dailyGoalMinutes || dailyGoalMinutes <= 0) {
+      Alert.alert("No goal", "Set a daily screentime goal first.");
+      return;
+    }
+    const percent = (todayMinutes / dailyGoalMinutes) * 100;
+    if (percent <= 0 || todayMinutes === 0) {
+      Alert.alert("No water", "No water when screen time is 0%.");
+      return;
+    }
+    if (percent > 100) {
+      Alert.alert(
+        "Over goal",
+        "You've exceeded your daily goal. No water this time.",
+      );
+      return;
+    }
+    const path = percent <= 50 ? "/admin/give_pure" : "/admin/give_light_nutrient";
+    const label = percent <= 50 ? "Pure water" : "Pure nutrient water";
+    setIsActionLoading(true);
+    const result = await callAdminEndpoint(path, { plant_uid: plantUid });
+    setIsActionLoading(false);
+    if (result.ok) {
+      Alert.alert("Done", `${label} given. ${percent}% of goal reached.`);
+      await queryClient.invalidateQueries({ queryKey: ["plant-character"] });
+    } else {
+      Alert.alert("Error", result.error || "Request failed.");
+    }
   };
-  const handleKillPlant = async () => {
-    await dummyKillPlant();
+
+  const handleAdminAction = async (path, actionLabel) => {
+    if (isActionLoading) return;
+    if (!plantUid) {
+      Alert.alert("No plant", "You need a linked plant to use this action.");
+      return;
+    }
+    setIsActionLoading(true);
+    const result = await callAdminEndpoint(path, { plant_uid: plantUid });
+    setIsActionLoading(false);
+    if (result.ok) {
+      Alert.alert("Done", `${actionLabel} completed.`);
+      await queryClient.invalidateQueries({ queryKey: ["plant-character"] });
+    } else {
+      Alert.alert("Error", result.error || "Request failed.");
+    }
   };
-  const handleResetKillPlant = async () => {
-    await dummyResetKillPlant();
-  };
+  const handleKillPlant = () =>
+    handleAdminAction("/admin/kill_plant", "Kill plant");
+  const handleResetKillPlant = () =>
+    handleAdminAction("/admin/reset_kill", "Reset kill");
 
   const handleDisconnect = async () => {
     if (!session?.user?.id) return;
     const ok = await disconnectPlant(session.user.id);
     if (ok) {
-      await queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-      await queryClient.invalidateQueries({ queryKey: ['plant'] });
-      await queryClient.invalidateQueries({ queryKey: ['plant-character'] });
-      router.replace('/(onboarding)/goal');
+      await queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      await queryClient.invalidateQueries({ queryKey: ["plant"] });
+      await queryClient.invalidateQueries({ queryKey: ["plant-character"] });
+      router.replace("/(onboarding)/goal");
     }
   };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    queryClient.removeQueries({ queryKey: ['auth-session'] });
-    queryClient.removeQueries({ queryKey: ['user-profile'] });
-    queryClient.removeQueries({ queryKey: ['plant'] });
-    queryClient.removeQueries({ queryKey: ['plant-character'] });
-    queryClient.removeQueries({ queryKey: ['time-history'] });
-    router.replace('/(auth)/sign-in');
+    queryClient.removeQueries({ queryKey: ["auth-session"] });
+    queryClient.removeQueries({ queryKey: ["user-profile"] });
+    queryClient.removeQueries({ queryKey: ["plant"] });
+    queryClient.removeQueries({ queryKey: ["plant-character"] });
+    queryClient.removeQueries({ queryKey: ["time-history"] });
+    router.replace("/(auth)/sign-in");
   };
 
   const appNames = (profile?.apps_to_track ?? []).map(bundleIdToName);
@@ -96,16 +176,30 @@ export default function ProfileScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, spacing.lg) + extraTop }]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: Math.max(insets.top, spacing.lg) + extraTop },
+      ]}
     >
       <Text style={styles.title}>my profile</Text>
 
       <Text style={styles.sectionLabel}>personal information</Text>
-      <Text style={styles.line}><Text style={styles.lineLabel}>first name: </Text>{profile?.first_name ?? '—'}</Text>
-      <Text style={styles.line}><Text style={styles.lineLabel}>email: </Text>{session?.user?.email ?? '—'}</Text>
-      <Text style={styles.line}><Text style={styles.lineLabel}>password: </Text>***********</Text>
+      <Text style={styles.line}>
+        <Text style={styles.lineLabel}>first name: </Text>
+        {profile?.first_name ?? "—"}
+      </Text>
+      <Text style={styles.line}>
+        <Text style={styles.lineLabel}>email: </Text>
+        {session?.user?.email ?? "—"}
+      </Text>
+      <Text style={styles.line}>
+        <Text style={styles.lineLabel}>password: </Text>***********
+      </Text>
 
-      <Text style={styles.line}><Text style={styles.lineLabel}>daily screentime goal: </Text>{profile?.daily_time_goal ?? '—'} hours</Text>
+      <Text style={styles.line}>
+        <Text style={styles.lineLabel}>daily screentime goal: </Text>
+        {profile?.daily_time_goal ?? "—"} hours
+      </Text>
 
       <Text style={styles.sectionLabel}>selected apps:</Text>
       {appNames.length > 0 ? (
@@ -116,7 +210,11 @@ export default function ProfileScreen() {
               <View key={name} style={styles.appRow}>
                 <View style={styles.checkbox} />
                 {iconSource ? (
-                  <Image source={iconSource} style={styles.appIcon} resizeMode="contain" />
+                  <Image
+                    source={iconSource}
+                    style={styles.appIcon}
+                    resizeMode="contain"
+                  />
                 ) : null}
                 <Text style={styles.appName}>{name}</Text>
               </View>
@@ -128,11 +226,23 @@ export default function ProfileScreen() {
       )}
 
       <View style={styles.actionButtons}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleSelectScreenTime}>
-          <Text style={styles.actionButtonText}>Select today's screen time</Text>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={handleSelectScreenTime}
+        >
+          <Text style={styles.actionButtonText}>
+            Select today's screen time
+          </Text>
           <View style={styles.sliderRow}>
             <View style={styles.sliderTrack}>
-              <View style={[styles.sliderFill, { width: `${Math.min(100, (todayMinutes / MAX_SLIDER_MINUTES) * 100)}%` }]} />
+              <View
+                style={[
+                  styles.sliderFill,
+                  {
+                    width: `${Math.min(100, (todayMinutes / MAX_SLIDER_MINUTES) * 100)}%`,
+                  },
+                ]}
+              />
             </View>
             <TouchableOpacity
               style={styles.sliderButton}
@@ -155,11 +265,25 @@ export default function ProfileScreen() {
               <Text style={styles.sliderButtonText}>−</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.sliderValue}>{formatMinutesAsHoursAndMinutes(todayMinutes)}</Text>
+          <Text style={styles.sliderValue}>
+            {formatMinutesAsHoursAndMinutes(todayMinutes)}
+          </Text>
         </TouchableOpacity>
-        <Button title="Water Plant" onPress={handleWaterPlant} style={styles.actionButtonSpaced} />
-        <Button title="Kill Plant" onPress={handleKillPlant} style={styles.actionButtonSpaced} />
-        <Button title="Reset Kill Plant" onPress={handleResetKillPlant} style={styles.actionButtonSpaced} />
+        <Button
+          title="Water Plant"
+          onPress={handleWaterPlant}
+          style={styles.actionButtonSpaced}
+        />
+        <Button
+          title="Kill Plant"
+          onPress={handleKillPlant}
+          style={styles.actionButtonSpaced}
+        />
+        <Button
+          title="Reset Kill Plant"
+          onPress={handleResetKillPlant}
+          style={styles.actionButtonSpaced}
+        />
       </View>
 
       <Button
@@ -180,11 +304,11 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   title: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: spacing.lg,
-    textTransform: 'lowercase',
+    textTransform: "lowercase",
   },
   sectionLabel: {
     ...typography.body,
@@ -193,14 +317,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   line: { ...typography.body, color: colors.text, marginBottom: spacing.xs },
-  lineLabel: { fontWeight: '700' },
+  lineLabel: { fontWeight: "700" },
   value: { ...typography.body, color: colors.text },
   appList: { marginBottom: spacing.md },
   appRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: spacing.sm,
-    width: '100%',
+    width: "100%",
   },
   checkbox: {
     width: 20,
@@ -222,34 +346,51 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardGreenBorder,
   },
-  actionButtonText: { ...typography.body, color: colors.text, marginBottom: spacing.sm, fontWeight: '600' },
-  sliderRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  actionButtonText: {
+    ...typography.body,
+    color: colors.text,
+    marginBottom: spacing.sm,
+    fontWeight: "600",
+  },
+  sliderRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   sliderTrack: {
     flex: 1,
     height: 8,
     backgroundColor: colors.progressTrackGreen,
     borderRadius: 4,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
-  sliderFill: { height: '100%', backgroundColor: colors.progressGreen, borderRadius: 4 },
+  sliderFill: {
+    height: "100%",
+    backgroundColor: colors.progressGreen,
+    borderRadius: 4,
+  },
   sliderButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  sliderButtonText: { fontSize: 18, color: colors.white, fontWeight: '600' },
-  sliderValue: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
+  sliderButtonText: { fontSize: 18, color: colors.white, fontWeight: "600" },
+  sliderValue: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
   actionButtonSpaced: { marginBottom: spacing.sm },
   disconnect: {
     marginTop: spacing.xl,
     marginBottom: spacing.md,
     borderColor: colors.primary,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderRadius: 9999,
   },
-  signOutWrap: { alignSelf: 'center', paddingVertical: spacing.sm },
-  signOutText: { ...typography.body, color: colors.primary, textDecorationLine: 'underline' },
+  signOutWrap: { alignSelf: "center", paddingVertical: spacing.sm },
+  signOutText: {
+    ...typography.body,
+    color: colors.primary,
+    textDecorationLine: "underline",
+  },
 });

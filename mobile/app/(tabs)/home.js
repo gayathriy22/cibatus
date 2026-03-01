@@ -111,6 +111,7 @@ export default function HomeScreen() {
 
   const plant = plantQuery.data;
   const character = characterQuery.data;
+  const characterImageUri = character?.plant_img_uri ?? character?.character_image_uri ?? null;
   const health = character?.character_health ?? 'okay';
   const goalMinutes = (profile?.daily_time_goal ?? 2) * 60;
 
@@ -163,8 +164,8 @@ export default function HomeScreen() {
       <Text style={styles.status}>{statusCopy}</Text>
 
       <View style={styles.plantFrame}>
-        {plant?.plant_img_uri ? (
-          <Image source={{ uri: plant.plant_img_uri }} style={styles.plantImage} resizeMode="contain" />
+        {characterImageUri ? (
+          <Image source={{ uri: characterImageUri }} style={styles.plantImage} resizeMode="contain" />
         ) : (
           <Image source={logo} style={styles.plantImage} resizeMode="contain" />
         )}

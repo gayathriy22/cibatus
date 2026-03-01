@@ -4,6 +4,7 @@ const defaultState = {
   first_name: '',
   goalHours: 2,
   appsToTrack: [],
+  scannedPlantUid: null,
   plantName: '',
   plantImageUri: null,
 };
@@ -22,6 +23,9 @@ export function OnboardingProvider({ children }) {
   const setAppsToTrack = useCallback((appsToTrack) => {
     setState((s) => ({ ...s, appsToTrack }));
   }, []);
+  const setScannedPlantUid = useCallback((scannedPlantUid) => {
+    setState((s) => ({ ...s, scannedPlantUid }));
+  }, []);
   const setPlantName = useCallback((plantName) => {
     setState((s) => ({ ...s, plantName }));
   }, []);
@@ -38,11 +42,12 @@ export function OnboardingProvider({ children }) {
       setFirstName,
       setGoalHours,
       setAppsToTrack,
+      setScannedPlantUid,
       setPlantName,
       setPlantImageUri,
       reset,
     }),
-    [state, setFirstName, setGoalHours, setAppsToTrack, setPlantName, setPlantImageUri, reset]
+    [state, setFirstName, setGoalHours, setAppsToTrack, setScannedPlantUid, setPlantName, setPlantImageUri, reset]
   );
 
   return (
