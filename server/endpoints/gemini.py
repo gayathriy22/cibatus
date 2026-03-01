@@ -50,10 +50,6 @@ def _resolve_inputs(body):
     if not plant_uid:
         return None, None, (jsonify({"error": "Missing plant_uid"}), 400)
 
-    plant_img_uri = body.get("plant_img_uri")
-    if plant_img_uri:
-        return plant_uid, plant_img_uri, None
-
     db_response = g.supabase.table("plant").select("plant_img_uri").eq("plant_uid", plant_uid).execute()
     if not db_response.data:
         return None, None, (jsonify({"error": "Plant not found"}), 404)
