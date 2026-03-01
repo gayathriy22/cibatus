@@ -5,7 +5,7 @@ import time
 
 from arduino.app_utils import *
 
-API_BASE_URL = "https://c680-128-199-12-13.ngrok-free.app"
+API_BASE_URL = "https://9908-128-199-12-13.ngrok-free.app"
 GET_QUEUE_ENDPOINT = "/edge/get_queue"
 SET_HANDLED_ENDPOINT = "/edge/set_handled"
 POLL_INTERVAL_SECONDS = 5

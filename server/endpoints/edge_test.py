@@ -8,7 +8,7 @@ def edge_get_queue():
     print("getting queue")
     response = g.supabase.table("waterQueue") \
         .select("*") \
-        .eq("plant_uid", "081f8a20-e6ab-4ed9-a904-431913167aac") \
+        .eq("plant_uid", "d40def0b-bb1b-4cc3-84da-9ea8da0c17f4") \
         .eq("handled", False) \
         .execute()
     return jsonify(response.data)
