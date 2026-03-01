@@ -9,9 +9,9 @@ API_BASE_URL = "https://380e-128-199-12-13.ngrok-free.app"
 GET_QUEUE_ENDPOINT = "/edge/get_queue"
 SET_HANDLED_ENDPOINT = "/edge/set_handled"
 POLL_INTERVAL_SECONDS = 30
-TYPE_TO_FUNCTION = {
-    "pure": "run_pure_pump",
-    "light_nutrient": "run_light_nutrient_pump",
+PUMP_TYPE_TO_INDEX = {
+    "pure": 0,
+    "light_nutrient": 1,
 }
 
 
@@ -94,17 +94,17 @@ def _poll_loop():
 
         item_id = item.get("id") if isinstance(item, dict) else None
         water_type = item.get("water_type") if isinstance(item, dict) else None
-        function_name = TYPE_TO_FUNCTION.get(water_type)
+        pump_index = PUMP_TYPE_TO_INDEX.get(water_type)
         duration_ms = 1000
-        
+
         if item_id is None:
             print("[poller] first queue item missing 'id'")
             time.sleep(POLL_INTERVAL_SECONDS)
             continue
 
         try:
-            ack = Bridge.call(function_name, duration_ms)
-            print(f"[poller] Bridge {function_name} ack: {ack}")
+            ack = Bridge.call("run_pump", duration_ms, pump_index)
+            print(f"[poller] Bridge run_pump ack: {ack}")
         except Exception as exc:
             print(f"[poller] Bridge call failed: {exc}")
             time.sleep(POLL_INTERVAL_SECONDS)

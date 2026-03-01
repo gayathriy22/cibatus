@@ -1,21 +1,41 @@
+#include <Arduino_Modulino.h>
 #include <Arduino_RouterBridge.h>
+
+ModulinoThermo thermo;
 
 // Digital output used to drive the MOSFET gate.
 static const uint8_t PURE_PUMP_PIN = 7;
 static const uint8_t LIGHT_NUTRIENT_PUMP_PIN = 8;
 
-bool run_pure_pump(int durationMs) {
+bool _run_pure_pump(int durationMs) {
   digitalWrite(PURE_PUMP_PIN, HIGH);
   delay(durationMs);
   digitalWrite(PURE_PUMP_PIN, LOW);
   return true;
 }
 
-bool run_light_nutrient_pump(int durationMs) {
+bool _run_light_nutrient_pump(int durationMs) {
   digitalWrite(LIGHT_NUTRIENT_PUMP_PIN, HIGH);
   delay(durationMs);
   digitalWrite(LIGHT_NUTRIENT_PUMP_PIN, LOW);
   return true;
+}
+
+bool run_pump(int durationMs, int pumpIndex) {
+  // Scale the duration based on temperature
+  float celsius = thermo.getTemperature();
+  if (celsius > 24) {
+    durationMs = durationMs * 1.5;
+  }
+
+  switch (pumpIndex) {
+    case 0:
+      return _run_pure_pump(durationMs);
+    case 1:
+      return _run_light_nutrient_pump(durationMs);
+    default:
+      return false;
+  }
 }
 
 void setup() {
@@ -26,9 +46,11 @@ void setup() {
   digitalWrite(LIGHT_NUTRIENT_PUMP_PIN, LOW);
 
   Bridge.begin();
-  Bridge.provide("run_pure_pump", run_pure_pump);
-  Bridge.provide("run_light_nutrient_pump", run_light_nutrient_pump);
-  Serial.println("Bridge initialized");
+  Bridge.provide("run_pump", run_pump);
+
+  // Set up temp modulino
+  Modulino.begin(Wire1);
+  thermo.begin();
 }
 
 void loop() {
