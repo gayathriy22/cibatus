@@ -116,20 +116,40 @@ def create_plant():
         return jsonify({"error": "Create plant failed", "detail": str(e)}), 500
 
 
-@api_bp.route("/api/plants/<plant_uid>", methods=["GET"])
-def get_plant(plant_uid):
+@api_bp.route("/api/plants/<plant_uid>", methods=["GET", "PATCH"])
+def get_or_update_plant(plant_uid):
     err, status = get_auth_uid()
     if err is not None:
         return err, status
-    try:
-        r = g.supabase.table("plant").select("*").eq("plant_uid", plant_uid).execute()
-        data = r.data
-        if isinstance(data, list):
-            data = data[0] if len(data) > 0 else None
-        return jsonify(data), 200
-    except Exception as e:
-        logger.exception("get_plant failed")
-        return jsonify({"error": "Get plant failed", "detail": str(e)}), 500
+    if request.method == "GET":
+        try:
+            r = g.supabase.table("plant").select("*").eq("plant_uid", plant_uid).execute()
+            data = r.data
+            if isinstance(data, list):
+                data = data[0] if len(data) > 0 else None
+            return jsonify(data), 200
+        except Exception as e:
+            logger.exception("get_plant failed")
+            return jsonify({"error": "Get plant failed", "detail": str(e)}), 500
+    if request.method == "PATCH":
+        body = request.get_json() or {}
+        updates = {}
+        if "plant_img_uri" in body:
+            updates["plant_img_uri"] = body["plant_img_uri"]
+        if "plant_name" in body:
+            updates["plant_name"] = body["plant_name"]
+        if not updates:
+            return jsonify({"error": "No updates provided"}), 400
+        try:
+            r = g.supabase.table("plant").update(updates).eq("plant_uid", plant_uid).execute()
+            data = r.data
+            if isinstance(data, list) and len(data) > 0:
+                data = data[0]
+            return jsonify(data or {"ok": True}), 200
+        except Exception as e:
+            logger.exception("update_plant failed")
+            return jsonify({"error": "Update plant failed", "detail": str(e)}), 500
+    return jsonify({"error": "Method not allowed"}), 405
 
 
 @api_bp.route("/api/plants/character", methods=["POST"])
@@ -289,3 +309,4 @@ def upload_plant_image():
     except Exception as e:
         logger.exception("upload_plant_image failed")
         return jsonify({"error": "Upload plant image failed", "detail": str(e)}), 500
+
