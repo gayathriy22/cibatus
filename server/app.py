@@ -14,6 +14,7 @@ BLUEPRINTS = [
     "users",
     "api",
     "edge_test",
+    "admin",
 ]
 
 
