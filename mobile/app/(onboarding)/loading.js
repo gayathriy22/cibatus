@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { apiTriggerGeminiGenerate, apiUpdatePlant } from '@/lib/api';
 import { createUserProfile } from '@/lib/db';
 import { colors, spacing, typography } from '@/theme/tokens';
 
@@ -17,7 +18,7 @@ export default function LoadingScreen() {
   const insets = useSafeAreaInsets();
   const { session, authUid } = useUserProfile();
   const queryClient = useQueryClient();
-  const { first_name, goalHours, appsToTrack, reset } = useOnboarding();
+  const { first_name, goalHours, appsToTrack, plantName, plantImageUri, reset } = useOnboarding();
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(0);
 
@@ -36,10 +37,31 @@ export default function LoadingScreen() {
         (first_name?.trim() && first_name.trim()) ||
         ((session?.user?.user_metadata?.first_name?.trim?.() ?? '') || 'User');
 
+      const appsList = Array.isArray(appsToTrack) ? appsToTrack : [];
+      const hasPlantImage =
+        plantImageUri && typeof plantImageUri === 'string' && (plantImageUri.startsWith('http://') || plantImageUri.startsWith('https://'));
+
+      // 1. Update the plant row with name and image URI in the DB BEFORE anything else that depends on it (e.g. Gemini).
+      const plantUpdates = {};
+      const nameToSet = plantName && typeof plantName === 'string' ? plantName.trim() : '';
+      if (nameToSet) plantUpdates.plant_name = nameToSet;
+      if (hasPlantImage) plantUpdates.plant_img_uri = plantImageUri;
+
+      if (Object.keys(plantUpdates).length > 0) {
+        const updateResult = await apiUpdatePlant(DEFAULT_PLANT_UID, plantUpdates);
+        if (updateResult == null && !cancelled) {
+          setError('Could not update plant.');
+          return;
+        }
+      }
+
+      if (cancelled) return;
+
+      // 2. Only after plant is updated: create user profile.
       const user = await createUserProfile(authUid, {
         first_name: nameToUse,
         daily_time_goal: goalHours,
-        apps_to_track: appsToTrack,
+        apps_to_track: appsList,
         plant_uid: DEFAULT_PLANT_UID,
       });
       if (!user && !cancelled) {
@@ -48,6 +70,12 @@ export default function LoadingScreen() {
       }
 
       if (cancelled) return;
+
+      // 3. Only after plant name and image_uri are in DB: call Gemini (it reads plant from DB).
+      if (hasPlantImage) {
+        await apiTriggerGeminiGenerate(DEFAULT_PLANT_UID).catch(() => {});
+      }
+
       setProgress(1);
       await queryClient.invalidateQueries({ queryKey: ['auth-session'] });
       await queryClient.invalidateQueries({ queryKey: ['user-profile'] });
@@ -59,7 +87,7 @@ export default function LoadingScreen() {
     return () => {
       cancelled = true;
     };
-  }, [authUid, session?.user?.user_metadata?.first_name, first_name, goalHours, appsToTrack, queryClient, reset]);
+  }, [authUid, session?.user?.user_metadata?.first_name, first_name, goalHours, appsToTrack, plantName, plantImageUri, queryClient, reset]);
 
   if (error) {
     return (

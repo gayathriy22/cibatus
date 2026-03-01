@@ -112,6 +112,15 @@ export async function apiGetPlant(plant_uid) {
   return data;
 }
 
+export async function apiUpdatePlant(plant_uid, updates) {
+  const { data, error } = await request(
+    `/api/plants/${encodeURIComponent(plant_uid)}`,
+    { method: 'PATCH', body: updates }
+  );
+  if (error) return null;
+  return data;
+}
+
 export async function apiInsertPlantCharacter(
   plant_uid,
   character_health,
@@ -198,6 +207,21 @@ export async function apiAdminGiveLightNutrient(plant_uid) {
   const { data, error } = await request('/admin/give_light_nutrient', {
     method: 'POST',
     body: { plant_uid },
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, data };
+}
+
+/**
+ * Trigger Gemini to generate cartoon plant character for the given plant.
+ * Server fetches plant image from DB, generates image, uploads to storage, inserts plantCharacter.
+ * Intended to be called in the background (e.g. during onboarding loading).
+ */
+export async function apiTriggerGeminiGenerate(plant_uid) {
+  console.log('apiTriggerGeminiGenerate', plant_uid);
+  const { data, error } = await request('/gemini/generate_image', {
+    method: 'POST',
+    body: { plant_uid: plant_uid },
   });
   if (error) return { ok: false, error };
   return { ok: true, data };
