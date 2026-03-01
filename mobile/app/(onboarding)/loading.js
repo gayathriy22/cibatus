@@ -5,25 +5,12 @@ import React, { useEffect, useState } from 'react';
 import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import {
-  createPlant,
-  createUserProfile,
-  insertPlantCharacter,
-} from '@/lib/db';
-import { DEFAULT_CHARACTER_IMAGE_URI } from '@/types/database';
+import { apiTriggerGeminiGenerate, apiUpdatePlant } from '@/lib/api';
+import { createUserProfile } from '@/lib/db';
 import { colors, spacing, typography } from '@/theme/tokens';
 
-function uuidV4() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-function isHttpUrl(s) {
-  return s.startsWith('http://') || s.startsWith('https://');
-}
+/** Single shared plant; no new plant is created on signup/login. */
+const DEFAULT_PLANT_UID = 'd40def0b-bb1b-4cc3-84da-9ea8da0c17f4';
 
 const logo = require('../../assets/logo.png');
 
@@ -50,29 +37,45 @@ export default function LoadingScreen() {
         (first_name?.trim() && first_name.trim()) ||
         ((session?.user?.user_metadata?.first_name?.trim?.() ?? '') || 'User');
 
-      const plant_uid = uuidV4();
-      const imgUri = plantImageUri && isHttpUrl(plantImageUri) ? plantImageUri : null;
+      const appsList = Array.isArray(appsToTrack) ? appsToTrack : [];
+      const hasPlantImage =
+        plantImageUri && typeof plantImageUri === 'string' && (plantImageUri.startsWith('http://') || plantImageUri.startsWith('https://'));
 
-      const plant = await createPlant(plant_uid, plantName || 'My Plant', imgUri);
-      if (!plant && !cancelled) {
-        setError('Could not create plant.');
-        return;
+      // 1. Update the plant row with name and image URI in the DB BEFORE anything else that depends on it (e.g. Gemini).
+      const plantUpdates = {};
+      const nameToSet = plantName && typeof plantName === 'string' ? plantName.trim() : '';
+      if (nameToSet) plantUpdates.plant_name = nameToSet;
+      if (hasPlantImage) plantUpdates.plant_img_uri = plantImageUri;
+
+      if (Object.keys(plantUpdates).length > 0) {
+        const updateResult = await apiUpdatePlant(DEFAULT_PLANT_UID, plantUpdates);
+        if (updateResult == null && !cancelled) {
+          setError('Could not update plant.');
+          return;
+        }
       }
 
+      if (cancelled) return;
+
+      // 2. Only after plant is updated: create user profile.
       const user = await createUserProfile(authUid, {
         first_name: nameToUse,
         daily_time_goal: goalHours,
-        apps_to_track: appsToTrack,
-        plant_uid,
+        apps_to_track: appsList,
+        plant_uid: DEFAULT_PLANT_UID,
       });
       if (!user && !cancelled) {
         setError('Could not create profile.');
         return;
       }
 
-      await insertPlantCharacter(plant_uid, 'very healthy', DEFAULT_CHARACTER_IMAGE_URI);
-
       if (cancelled) return;
+
+      // 3. Only after plant name and image_uri are in DB: call Gemini (it reads plant from DB).
+      if (hasPlantImage) {
+        await apiTriggerGeminiGenerate(DEFAULT_PLANT_UID).catch(() => {});
+      }
+
       setProgress(1);
       await queryClient.invalidateQueries({ queryKey: ['auth-session'] });
       await queryClient.invalidateQueries({ queryKey: ['user-profile'] });
