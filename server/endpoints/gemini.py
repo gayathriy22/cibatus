@@ -60,7 +60,13 @@ def _resolve_inputs(body):
 
     plant_img_uri = db_response.data[0].get("plant_img_uri")
     if not plant_img_uri:
-        return None, None, (jsonify({"error": "Missing plant_img_uri"}), 400)
+        return None, None, (
+            jsonify({
+                "error": "Missing plant_img_uri",
+                "detail": "The plant has no image set. Upload a plant photo in onboarding or set plant_img_uri on the plant row.",
+            }),
+            400,
+        )
     return plant_uid, plant_img_uri, None
 
 
