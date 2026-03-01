@@ -164,6 +164,45 @@ export async function apiGetTimeHistoryRange(user_id, days) {
  * In React Native, FormData must receive { uri, name, type } for the file;
  * fetch(uri) + blob often yields empty or fails for local URIs.
  */
+/**
+ * Admin actions (POST, JSON body: { plant_uid }).
+ */
+export async function apiAdminKillPlant(plant_uid) {
+  const { data, error } = await request('/admin/kill_plant', {
+    method: 'POST',
+    body: { plant_uid },
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, data };
+}
+
+export async function apiAdminResetKill(plant_uid) {
+  const { data, error } = await request('/admin/reset_kill', {
+    method: 'POST',
+    body: { plant_uid },
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, data };
+}
+
+export async function apiAdminGivePure(plant_uid) {
+  const { data, error } = await request('/admin/give_pure', {
+    method: 'POST',
+    body: { plant_uid },
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, data };
+}
+
+export async function apiAdminGiveLightNutrient(plant_uid) {
+  const { data, error } = await request('/admin/give_light_nutrient', {
+    method: 'POST',
+    body: { plant_uid },
+  });
+  if (error) return { ok: false, error };
+  return { ok: true, data };
+}
+
 export async function apiUploadPlantImage(uri, fileName) {
   const token = await getAccessToken();
   if (!token || !BASE) return null;
