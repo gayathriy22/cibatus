@@ -5,20 +5,98 @@ import React, { useEffect, useState } from 'react';
 import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { apiTriggerGeminiGenerate, apiUpdatePlant } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { createUserProfile } from '@/lib/db';
 import { colors, spacing, typography } from '@/theme/tokens';
 
 /** Single shared plant; no new plant is created on signup/login. */
 const DEFAULT_PLANT_UID = 'd40def0b-bb1b-4cc3-84da-9ea8da0c17f4';
+const BASE = process.env.EXPO_PUBLIC_API_URL ?? '';
 
 const logo = require('../../assets/logo.png');
+
+async function requestWithAuth(path, options = {}) {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token ?? null;
+  if (!token) throw new Error('Not authenticated');
+  if (!BASE) throw new Error('Missing EXPO_PUBLIC_API_URL');
+
+  const url = `${BASE.replace(/\/$/, '')}${path}`;
+  const method = options.method ?? 'GET';
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    ...(options.headers ?? {}),
+  };
+  if (options.body != null && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const body =
+    options.body instanceof FormData
+      ? options.body
+      : options.body != null
+        ? JSON.stringify(options.body)
+        : undefined;
+  const res = await fetch(url, { ...options, method, headers, body });
+  const text = await res.text();
+  let payload = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = text;
+    }
+  }
+  if (!res.ok) {
+    const message =
+      (payload && typeof payload === 'object' && (payload.detail || payload.error)) ||
+      (typeof payload === 'string' ? payload : '') ||
+      res.statusText;
+    throw new Error(String(message || `HTTP ${res.status}`));
+  }
+  return payload;
+}
+
+async function updatePlantStrict(plantUid, plantUpdates) {
+  try {
+    const apiModule = await import('@/lib/api');
+    const updatePlant = apiModule?.apiUpdatePlant;
+    if (typeof updatePlant === 'function') {
+      const result = await updatePlant(plantUid, plantUpdates);
+      if (result == null) throw new Error('apiUpdatePlant returned null');
+      return result;
+    }
+  } catch {
+    // Fall through to direct request fallback.
+  }
+  return requestWithAuth(`/api/plants/${encodeURIComponent(plantUid)}`, {
+    method: 'PATCH',
+    body: plantUpdates,
+  });
+}
+
+async function triggerGeminiGenerateStrict(plantUid) {
+  try {
+    const apiModule = await import('@/lib/api');
+    const triggerGeminiGenerate = apiModule?.apiTriggerGeminiGenerate;
+    if (typeof triggerGeminiGenerate === 'function') {
+      const result = await triggerGeminiGenerate(plantUid);
+      if (!result?.ok) throw new Error(result?.error || 'apiTriggerGeminiGenerate failed');
+      return result;
+    }
+  } catch {
+    // Fall through to direct request fallback.
+  }
+  return requestWithAuth('/gemini/generate_image', {
+    method: 'POST',
+    body: { plant_uid: plantUid },
+  });
+}
 
 export default function LoadingScreen() {
   const insets = useSafeAreaInsets();
   const { session, authUid } = useUserProfile();
   const queryClient = useQueryClient();
-  const { first_name, goalHours, appsToTrack, plantName, plantImageUri, reset } = useOnboarding();
+  const { first_name, goalHours, appsToTrack, scannedPlantUid, plantName, plantImageUri, reset } = useOnboarding();
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState(0);
 
@@ -38,6 +116,7 @@ export default function LoadingScreen() {
         ((session?.user?.user_metadata?.first_name?.trim?.() ?? '') || 'User');
 
       const appsList = Array.isArray(appsToTrack) ? appsToTrack : [];
+      const plantUidToUse = scannedPlantUid || DEFAULT_PLANT_UID;
       const hasPlantImage =
         plantImageUri && typeof plantImageUri === 'string' && (plantImageUri.startsWith('http://') || plantImageUri.startsWith('https://'));
 
@@ -48,9 +127,10 @@ export default function LoadingScreen() {
       if (hasPlantImage) plantUpdates.plant_img_uri = plantImageUri;
 
       if (Object.keys(plantUpdates).length > 0) {
-        const updateResult = await apiUpdatePlant(DEFAULT_PLANT_UID, plantUpdates);
-        if (updateResult == null && !cancelled) {
-          setError('Could not update plant.');
+        try {
+          await updatePlantStrict(plantUidToUse, plantUpdates);
+        } catch (e) {
+          if (!cancelled) setError(`Could not update plant: ${e?.message || 'unknown error'}`);
           return;
         }
       }
@@ -62,7 +142,7 @@ export default function LoadingScreen() {
         first_name: nameToUse,
         daily_time_goal: goalHours,
         apps_to_track: appsList,
-        plant_uid: DEFAULT_PLANT_UID,
+        plant_uid: plantUidToUse,
       });
       if (!user && !cancelled) {
         setError('Could not create profile.');
@@ -73,7 +153,12 @@ export default function LoadingScreen() {
 
       // 3. Only after plant name and image_uri are in DB: call Gemini (it reads plant from DB).
       if (hasPlantImage) {
-        await apiTriggerGeminiGenerate(DEFAULT_PLANT_UID).catch(() => {});
+        try {
+          await triggerGeminiGenerateStrict(plantUidToUse);
+        } catch (e) {
+          if (!cancelled) setError(`Could not generate plant character: ${e?.message || 'unknown error'}`);
+          return;
+        }
       }
 
       setProgress(1);
@@ -87,7 +172,7 @@ export default function LoadingScreen() {
     return () => {
       cancelled = true;
     };
-  }, [authUid, session?.user?.user_metadata?.first_name, first_name, goalHours, appsToTrack, plantName, plantImageUri, queryClient, reset]);
+  }, [authUid, session?.user?.user_metadata?.first_name, first_name, goalHours, appsToTrack, scannedPlantUid, plantName, plantImageUri, queryClient, reset]);
 
   if (error) {
     return (

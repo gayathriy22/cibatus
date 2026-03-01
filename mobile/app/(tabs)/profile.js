@@ -14,17 +14,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import {
-  apiAdminGiveLightNutrient,
-  apiAdminGivePure,
-  apiAdminKillPlant,
-  apiAdminResetKill,
-} from "@/lib/api";
 import { disconnectPlant } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { getAppIconSource } from "@/lib/appIcons";
 import { DUMMY_INSTALLED_APPS } from "@/lib/screenTime";
 import { colors, spacing, typography } from "@/theme/tokens";
+
+const BASE = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 async function dummySelectTodayScreenTime(minutes) {
   await new Promise((r) => setTimeout(r, 100));
@@ -50,6 +46,7 @@ export default function ProfileScreen() {
   const { profile, session } = useUserProfile();
   const queryClient = useQueryClient();
   const [todayMinutes, setTodayMinutes] = useState(60);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const MAX_SLIDER_MINUTES = 24 * 60; // 24 hours
   const extraTop = Dimensions.get("window").height * 0.05;
 
@@ -60,7 +57,45 @@ export default function ProfileScreen() {
   const dailyGoalHours = profile?.daily_time_goal ?? 0;
   const dailyGoalMinutes = dailyGoalHours * 60;
 
+  const callAdminEndpoint = async (path, payload) => {
+    if (!BASE) return { ok: false, error: "Missing EXPO_PUBLIC_API_URL" };
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token ?? null;
+    if (!token) return { ok: false, error: "Not authenticated" };
+    try {
+      const res = await fetch(`${BASE.replace(/\/$/, "")}${path}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const text = await res.text();
+      let json = null;
+      if (text) {
+        try {
+          json = JSON.parse(text);
+        } catch {
+          json = null;
+        }
+      }
+      if (!res.ok) {
+        const message =
+          (json && (json.detail || json.error)) ||
+          text ||
+          res.statusText ||
+          "Request failed.";
+        return { ok: false, error: message };
+      }
+      return { ok: true, data: json };
+    } catch (e) {
+      return { ok: false, error: e?.message || "Network error." };
+    }
+  };
+
   const handleWaterPlant = async () => {
+    if (isActionLoading) return;
     if (!plantUid) {
       Alert.alert("No plant", "You need a linked plant to use this action.");
       return;
@@ -81,32 +116,39 @@ export default function ProfileScreen() {
       );
       return;
     }
-    const apiFn = percent <= 50 ? apiAdminGivePure : apiAdminGiveLightNutrient;
+    const path = percent <= 50 ? "/admin/give_pure" : "/admin/give_light_nutrient";
     const label = percent <= 50 ? "Pure water" : "Pure nutrient water";
-    const result = await apiFn(plantUid);
+    setIsActionLoading(true);
+    const result = await callAdminEndpoint(path, { plant_uid: plantUid });
+    setIsActionLoading(false);
     if (result.ok) {
       Alert.alert("Done", `${label} given. ${percent}% of goal reached.`);
+      await queryClient.invalidateQueries({ queryKey: ["plant-character"] });
     } else {
       Alert.alert("Error", result.error || "Request failed.");
     }
   };
 
-  const handleAdminAction = async (apiFn, actionLabel) => {
+  const handleAdminAction = async (path, actionLabel) => {
+    if (isActionLoading) return;
     if (!plantUid) {
       Alert.alert("No plant", "You need a linked plant to use this action.");
       return;
     }
-    const result = await apiFn(plantUid);
+    setIsActionLoading(true);
+    const result = await callAdminEndpoint(path, { plant_uid: plantUid });
+    setIsActionLoading(false);
     if (result.ok) {
       Alert.alert("Done", `${actionLabel} completed.`);
+      await queryClient.invalidateQueries({ queryKey: ["plant-character"] });
     } else {
       Alert.alert("Error", result.error || "Request failed.");
     }
   };
   const handleKillPlant = () =>
-    handleAdminAction(apiAdminKillPlant, "Kill plant");
+    handleAdminAction("/admin/kill_plant", "Kill plant");
   const handleResetKillPlant = () =>
-    handleAdminAction(apiAdminResetKill, "Reset kill");
+    handleAdminAction("/admin/reset_kill", "Reset kill");
 
   const handleDisconnect = async () => {
     if (!session?.user?.id) return;

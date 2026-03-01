@@ -40,7 +40,7 @@ export default function AppsScreen() {
     }
   };
 
-  const next = () => router.push('/(onboarding)/plant-name');
+  const next = () => router.push('/(onboarding)/scan-qr');
 
   if (loading) {
     return (

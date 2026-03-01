@@ -5,6 +5,7 @@ export default function OnboardingLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="goal" />
       <Stack.Screen name="apps" />
+      <Stack.Screen name="scan-qr" />
       <Stack.Screen name="plant-name" />
       <Stack.Screen name="plant-photo" />
       <Stack.Screen name="loading" />
