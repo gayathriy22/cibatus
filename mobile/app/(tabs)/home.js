@@ -80,7 +80,7 @@ function ProgressBar({ value, max }) {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { profile } = useUserProfile();
+  const { profile, isLoading: isProfileLoading } = useUserProfile();
   useTimeHistorySync();
   usePlantHealthUpdate();
   const { getTodayTotalMinutes, getTodayPickups, getPerAppBreakdown } = useScreenTime();
@@ -106,12 +106,40 @@ export default function HomeScreen() {
   const characterQuery = useQuery({
     queryKey: ['plant-character', plantUid],
     queryFn: () => (plantUid ? getPlantCharacter(plantUid) : null),
-    enabled: !!plantUid,
+    enabled: !!plantUid && !isProfileLoading,
+    refetchOnMount: 'always',
   });
 
   const plant = plantQuery.data;
   const character = characterQuery.data;
-  const characterImageUri = character?.plant_img_uri ?? character?.character_image_uri ?? null;
+  const [imageLoadFailed, setImageLoadFailed] = React.useState(false);
+  const [didRetryImage, setDidRetryImage] = React.useState(false);
+  const characterImageUri = useMemo(() => {
+    const raw =
+      character?.plant_img_uri ??
+      character?.character_image_uri ??
+      character?.image_uri ??
+      character?.public_url ??
+      null;
+    if (typeof raw !== 'string') return null;
+    const cleaned = raw.trim().replace(/^"|"$/g, '');
+    return cleaned || null;
+  }, [character?.plant_img_uri, character?.character_image_uri, character?.image_uri, character?.public_url]);
+  const displayImageUri = useMemo(() => {
+    if (!characterImageUri) return null;
+    if (!didRetryImage) return characterImageUri;
+    const sep = characterImageUri.includes('?') ? '&' : '?';
+    return `${characterImageUri}${sep}retry=${Date.now()}`;
+  }, [characterImageUri, didRetryImage]);
+  useEffect(() => {
+    setImageLoadFailed(false);
+    setDidRetryImage(false);
+  }, [characterImageUri]);
+
+  useEffect(() => {
+    if (!plantUid || isProfileLoading) return;
+    characterQuery.refetch();
+  }, [plantUid, isProfileLoading]);
   const health = character?.character_health ?? 'okay';
   const goalMinutes = (profile?.daily_time_goal ?? 2) * 60;
 
@@ -164,8 +192,20 @@ export default function HomeScreen() {
       <Text style={styles.status}>{statusCopy}</Text>
 
       <View style={styles.plantFrame}>
-        {characterImageUri ? (
-          <Image source={{ uri: characterImageUri }} style={styles.plantImage} resizeMode="contain" />
+        {displayImageUri && !imageLoadFailed ? (
+          <Image
+            source={{ uri: displayImageUri }}
+            style={styles.plantImage}
+            resizeMode="contain"
+            onError={async () => {
+              if (!didRetryImage) {
+                setDidRetryImage(true);
+                await characterQuery.refetch();
+                return;
+              }
+              setImageLoadFailed(true);
+            }}
+          />
         ) : (
           <Image source={logo} style={styles.plantImage} resizeMode="contain" />
         )}
