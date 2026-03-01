@@ -159,18 +159,20 @@ export async function apiGetTimeHistoryRange(user_id, days) {
   return data ?? [];
 }
 
+/**
+ * Upload a plant image from a local URI (file:// or content://).
+ * In React Native, FormData must receive { uri, name, type } for the file;
+ * fetch(uri) + blob often yields empty or fails for local URIs.
+ */
 export async function apiUploadPlantImage(uri, fileName) {
   const token = await getAccessToken();
   if (!token || !BASE) return null;
   const formData = new FormData();
-  try {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    formData.append('file', blob, fileName);
-  } catch (e) {
-    console.error('apiUploadPlantImage fetch blob', e);
-    return null;
-  }
+  formData.append('file', {
+    uri,
+    name: fileName,
+    type: 'image/jpeg',
+  });
   const url = `${BASE.replace(/\/$/, '')}/api/upload/plant-image`;
   const res = await fetch(url, {
     method: 'POST',

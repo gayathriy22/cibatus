@@ -1,10 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import React from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { StyleSheet, Text, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { OnboardingHeader } from '@/components/OnboardingHeader';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { colors, spacing, typography } from '@/theme/tokens';
 import { z } from 'zod';
@@ -14,6 +16,7 @@ const schema = z.object({
 });
 
 export default function PlantNameScreen() {
+  const insets = useSafeAreaInsets();
   const { plantName, setPlantName } = useOnboarding();
   const {
     control,
@@ -29,28 +32,29 @@ export default function PlantNameScreen() {
     router.push('/(onboarding)/plant-photo');
   });
 
+  const extraTop = Dimensions.get('window').height * 0.15;
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Name your plant</Text>
-      <Text style={styles.subtitle}>Give your plant a name so you can care for it.</Text>
-
-      <Controller
-        control={control}
-        name="plantName"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <Input
-            label="Plant name"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            error={errors.plantName?.message}
-            placeholder="e.g. Jonathan"
-            autoCapitalize="words"
-          />
-        )}
-      />
-
-      <Button title="Next" onPress={next} style={styles.button} />
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, spacing.xl) + extraTop }]}>
+      <OnboardingHeader subtitle="what is your plant's name?" />
+      <View style={styles.form}>
+        <Controller
+          control={control}
+          name="plantName"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <Input
+              label=""
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              error={errors.plantName?.message}
+              placeholder=""
+              autoCapitalize="words"
+              style={styles.input}
+            />
+          )}
+        />
+        <Button title="next →" onPress={next} style={styles.button} />
+      </View>
     </View>
   );
 }
@@ -60,17 +64,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl * 2,
+    paddingTop: spacing.xl,
   },
-  title: {
-    ...typography.title,
-    color: colors.text,
-    marginBottom: spacing.xs,
+  form: { flex: 1, maxWidth: 340, alignSelf: 'center', width: '100%' },
+  input: {
+    backgroundColor: colors.inputBg,
+    borderColor: colors.inputBorder,
+    borderRadius: 9999,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
   },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.xl,
-  },
-  button: { marginTop: 'auto', marginBottom: spacing.xl },
+  button: { marginTop: spacing.xl, borderRadius: 9999 },
 });

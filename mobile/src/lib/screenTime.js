@@ -16,9 +16,16 @@ const MOCK_BREAKDOWN = [
   { app: 'Canvas', minutes: 15 },
   { app: 'TikTok', minutes: 52 },
   { app: 'YouTube', minutes: 38 },
+  { app: 'Clash Royale', minutes: 20 },
+  { app: 'Brawl Stars', minutes: 18 },
+  { app: 'Threads', minutes: 25 },
+  { app: 'Snapchat', minutes: 30 },
+  { app: 'Gmail', minutes: 22 },
+  { app: 'FaceTime', minutes: 12 },
+  { app: 'Spotify', minutes: 40 },
 ];
 
-/** Dummy installed apps list – same as APP_OPTIONS on onboarding, with bundle IDs for compatibility */
+/** Dummy installed apps list – with bundle IDs for compatibility; includes app icons in assets */
 export const DUMMY_INSTALLED_APPS = [
   { bundleIdentifier: 'com.burbn.instagram', displayName: 'Instagram' },
   { bundleIdentifier: 'tv.twitch', displayName: 'Twitch' },
@@ -26,6 +33,13 @@ export const DUMMY_INSTALLED_APPS = [
   { bundleIdentifier: 'com.apple.MobileSMS', displayName: 'Messages' },
   { bundleIdentifier: 'com.zhiliaoapp.musically', displayName: 'TikTok' },
   { bundleIdentifier: 'com.google.ios.youtube', displayName: 'YouTube' },
+  { bundleIdentifier: 'com.supercell.clashroyale', displayName: 'Clash Royale' },
+  { bundleIdentifier: 'com.supercell.brawlstars', displayName: 'Brawl Stars' },
+  { bundleIdentifier: 'com.burbn.threads', displayName: 'Threads' },
+  { bundleIdentifier: 'com.toyopagroup.picaboo', displayName: 'Snapchat' },
+  { bundleIdentifier: 'com.google.Gmail', displayName: 'Gmail' },
+  { bundleIdentifier: 'com.apple.facetime', displayName: 'FaceTime' },
+  { bundleIdentifier: 'com.spotify.client', displayName: 'Spotify' },
 ];
 
 async function getStoredNumber(key, fallback) {

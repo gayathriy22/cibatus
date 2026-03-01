@@ -1,7 +1,9 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
+import { OnboardingHeader } from '@/components/OnboardingHeader';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { colors, spacing, typography } from '@/theme/tokens';
@@ -11,6 +13,7 @@ const MAX_HOURS = 12;
 const STEP = 0.5;
 
 export default function GoalScreen() {
+  const insets = useSafeAreaInsets();
   const { session } = useUserProfile();
   const { goalHours, setGoalHours, first_name, setFirstName } = useOnboarding();
 
@@ -26,11 +29,10 @@ export default function GoalScreen() {
 
   const next = () => router.push('/(onboarding)/apps');
 
+  const extraTop = Dimensions.get('window').height * 0.15;
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Daily screentime goal</Text>
-      <Text style={styles.subtitle}>Set how many hours you want to limit screen time to each day.</Text>
-
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, spacing.xl) + extraTop }]}>
+      <OnboardingHeader subtitle="what is your daily screentime goal?" />
       <View style={styles.stepper}>
         <TouchableOpacity onPress={decrement} style={styles.stepperButton} accessibilityLabel="Decrease">
           <Text style={styles.stepperLabel}>−</Text>
@@ -43,8 +45,7 @@ export default function GoalScreen() {
           <Text style={styles.stepperLabel}>+</Text>
         </TouchableOpacity>
       </View>
-
-      <Button title="Next" onPress={next} style={styles.button} />
+      <Button title="next →" onPress={next} style={styles.button} />
     </View>
   );
 }
@@ -54,28 +55,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl * 2,
-  },
-  title: {
-    ...typography.title,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.xl,
+    paddingTop: spacing.xl,
   },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: spacing.lg,
     marginBottom: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
   },
   stepperButton: {
     width: 48,
@@ -85,24 +71,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepperLabel: {
-    fontSize: 28,
-    color: colors.white,
-    fontWeight: '600',
-  },
-  valueWrap: {
-    marginHorizontal: spacing.xl,
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  value: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  unit: {
-    ...typography.bodySmall,
-    color: colors.textSecondary,
-  },
-  button: { marginTop: 'auto', marginBottom: spacing.xl },
+  stepperLabel: { fontSize: 28, color: colors.white, fontWeight: '600' },
+  valueWrap: { marginHorizontal: spacing.xl, alignItems: 'center', minWidth: 80 },
+  value: { fontSize: 36, fontWeight: '700', color: colors.text },
+  unit: { ...typography.body, color: colors.text, marginTop: spacing.xs },
+  button: { marginTop: 'auto', marginBottom: spacing.xl, borderRadius: 9999 },
 });

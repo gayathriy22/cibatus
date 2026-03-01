@@ -1,48 +1,67 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Text } from 'react-native';
+import { View } from 'react-native';
 import { colors } from '@/theme/tokens';
+
+const iconMap = {
+  home: 'home-outline',
+  stats: 'bar-chart-outline',
+  profile: 'person-outline',
+};
 
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarShowLabel: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.cardBorder,
+          backgroundColor: colors.background,
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
         },
-        tabBarLabelStyle: { fontSize: 12 },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <TabIcon name="home" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={iconMap.home} size={24} color={color} />
+              {focused ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.progressGreen, marginTop: 4 }} /> : null}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="stats"
         options={{
           title: 'Stats',
-          tabBarIcon: ({ color }) => <TabIcon name="stats" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={iconMap.stats} size={24} color={color} />
+              {focused ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.progressGreen, marginTop: 4 }} /> : null}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <TabIcon name="profile" color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={iconMap.profile} size={24} color={color} />
+              {focused ? <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.progressGreen, marginTop: 4 }} /> : null}
+            </View>
+          ),
         }}
       />
     </Tabs>
   );
-}
-
-function TabIcon({ name, color }) {
-  const icons = { home: '🏠', stats: '📊', profile: '👤' };
-  return <Text style={{ fontSize: 22 }}>{icons[name]}</Text>;
 }

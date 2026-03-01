@@ -1,8 +1,10 @@
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   Image,
   StyleSheet,
   Text,
@@ -10,11 +12,13 @@ import {
   View,
 } from 'react-native';
 import { Button } from '@/components/Button';
+import { OnboardingHeader } from '@/components/OnboardingHeader';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { uploadPlantImage } from '@/lib/storage';
 import { colors, spacing, typography } from '@/theme/tokens';
 
 export default function PlantPhotoScreen() {
+  const insets = useSafeAreaInsets();
   const { plantImageUri, setPlantImageUri, plantName } = useOnboarding();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -33,8 +37,7 @@ export default function PlantPhotoScreen() {
       quality: 0.8,
     });
     if (result.canceled) return;
-    const uri = result.assets[0].uri;
-    setPlantImageUri(uri);
+    setPlantImageUri(result.assets[0].uri);
   };
 
   const takePhoto = async () => {
@@ -50,8 +53,7 @@ export default function PlantPhotoScreen() {
       quality: 0.8,
     });
     if (result.canceled) return;
-    const uri = result.assets[0].uri;
-    setPlantImageUri(uri);
+    setPlantImageUri(result.assets[0].uri);
   };
 
   const next = async () => {
@@ -62,18 +64,17 @@ export default function PlantPhotoScreen() {
     setUploading(true);
     setError(null);
     try {
-      const fileName = `plant-${plantName || 'unknown'}-${Date.now()}.jpg`;
+      const fileName = `plant-${(plantName || 'unknown').replace(/\s+/g, '-')}-${Date.now()}.jpg`;
       const publicUrl = await uploadPlantImage(plantImageUri, fileName);
-      if (publicUrl) {
-        setPlantImageUri(publicUrl);
-        router.push('/(onboarding)/loading');
-      } else {
-        setError('Upload failed. You can continue with a local photo.');
-        router.push('/(onboarding)/loading');
+      if (!publicUrl) {
+        setError('Upload failed. Check your connection and try again.');
+        setUploading(false);
+        return;
       }
-    } catch (e) {
-      setError('Upload failed. Continuing with local photo.');
+      setPlantImageUri(publicUrl);
       router.push('/(onboarding)/loading');
+    } catch (e) {
+      setError(e?.message || 'Upload failed. Try again.');
     } finally {
       setUploading(false);
     }
@@ -84,28 +85,31 @@ export default function PlantPhotoScreen() {
     router.push('/(onboarding)/loading');
   };
 
+  const displayName = (plantName || 'your plant').toLowerCase();
+
+  const extraTop = Dimensions.get('window').height * 0.05;
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Take a photo</Text>
-      <Text style={styles.subtitle}>Add a photo of your plant (or use a placeholder).</Text>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, spacing.xl) + extraTop }]}>
+      <OnboardingHeader />
+      <Text style={styles.prompt}>take a picture of</Text>
+      <Text style={styles.plantName}>{displayName}</Text>
 
-      <View style={styles.preview}>
+      <View style={styles.cameraPlaceholder}>
         {plantImageUri ? (
-          <Image source={{ uri: plantImageUri }} style={styles.image} resizeMode="cover" />
+          <Image source={{ uri: plantImageUri }} style={styles.previewImage} resizeMode="cover" />
         ) : (
-          <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>No photo yet</Text>
-          </View>
+          <>
+            <Text style={styles.placeholderText}>this is a camera to take photo</Text>
+            <View style={styles.actions}>
+              <TouchableOpacity onPress={pickImage} style={styles.secondaryButton} disabled={uploading}>
+                <Text style={styles.secondaryButtonText}>Choose from library</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={takePhoto} style={styles.secondaryButton} disabled={uploading}>
+                <Text style={styles.secondaryButtonText}>Take photo</Text>
+              </TouchableOpacity>
+            </View>
+          </>
         )}
-      </View>
-
-      <View style={styles.actions}>
-        <TouchableOpacity onPress={pickImage} style={styles.secondaryButton} disabled={uploading}>
-          <Text style={styles.secondaryButtonText}>Choose from library</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={takePhoto} style={styles.secondaryButton} disabled={uploading}>
-          <Text style={styles.secondaryButtonText}>Take photo</Text>
-        </TouchableOpacity>
       </View>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -114,7 +118,7 @@ export default function PlantPhotoScreen() {
         <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
       ) : (
         <>
-          <Button title="Next" onPress={next} style={styles.button} />
+          <Button title="next →" onPress={next} style={styles.button} />
           <TouchableOpacity onPress={skip} disabled={uploading}>
             <Text style={styles.skipText}>Skip for now</Text>
           </TouchableOpacity>
@@ -129,48 +133,52 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl * 2,
+    paddingTop: spacing.xl,
   },
-  title: {
-    ...typography.title,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
+  prompt: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+    textTransform: 'lowercase',
+  },
+  plantName: {
+    ...typography.body,
+    color: colors.text,
+    textAlign: 'center',
     marginBottom: spacing.xl,
+    textTransform: 'lowercase',
   },
-  preview: {
-    width: 200,
-    height: 200,
-    alignSelf: 'center',
-    borderRadius: 100,
-    overflow: 'hidden',
-    backgroundColor: colors.card,
-    marginBottom: spacing.lg,
-  },
-  image: { width: '100%', height: '100%' },
-  placeholder: {
-    flex: 1,
-    alignItems: 'center',
+  cameraPlaceholder: {
+    minHeight: 220,
+    backgroundColor: colors.cardGreen,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardGreenBorder,
     justifyContent: 'center',
-    backgroundColor: colors.cardBorder,
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    overflow: 'hidden',
   },
-  placeholderText: { ...typography.bodySmall, color: colors.textSecondary },
-  actions: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  placeholderText: {
+    ...typography.body,
+    color: colors.text,
+    textTransform: 'lowercase',
+    marginBottom: spacing.md,
+  },
+  previewImage: { width: '100%', height: 220 },
+  actions: { flexDirection: 'row', gap: spacing.sm },
   secondaryButton: {
-    flex: 1,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderRadius: 12,
-    backgroundColor: colors.card,
-    alignItems: 'center',
+    backgroundColor: colors.surface,
+    marginHorizontal: spacing.xs,
   },
   secondaryButtonText: { ...typography.bodySmall, color: colors.primary },
   errorText: { ...typography.caption, color: colors.error, marginBottom: spacing.sm },
   loader: { marginVertical: spacing.lg },
-  button: { marginTop: 'auto', marginBottom: spacing.sm },
+  button: { marginTop: 'auto', marginBottom: spacing.sm, borderRadius: 9999 },
   skipText: {
     ...typography.bodySmall,
     color: colors.textSecondary,

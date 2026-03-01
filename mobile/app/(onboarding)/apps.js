@@ -1,12 +1,25 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { Button } from '@/components/Button';
+import { OnboardingHeader } from '@/components/OnboardingHeader';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useScreenTime } from '@/contexts/ScreenTimeContext';
+import { getAppIconSource } from '@/lib/appIcons';
 import { colors, spacing, typography } from '@/theme/tokens';
 
 export default function AppsScreen() {
+  const insets = useSafeAreaInsets();
   const { appsToTrack, setAppsToTrack } = useOnboarding();
   const { getInstalledApplications } = useScreenTime();
   const [installedApps, setInstalledApps] = useState([]);
@@ -37,16 +50,20 @@ export default function AppsScreen() {
     );
   }
 
+  const extraTop = Dimensions.get('window').height * 0.05;
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Pick apps to track</Text>
-      <Text style={styles.subtitle}>Select the apps you want to limit. (Using dummy list for development.)</Text>
-
-      <View style={styles.list}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, spacing.xl) + extraTop }]}>
+      <OnboardingHeader subtitle="which apps would you like to track screentime for?" />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+      >
         {installedApps.map((app) => {
           const bundleId = app.bundleIdentifier || app.bundle_id;
           const displayName = app.displayName || app.display_name || bundleId || 'App';
           const selected = appsToTrack.includes(bundleId);
+          const iconSource = getAppIconSource(displayName);
           return (
             <TouchableOpacity
               key={bundleId}
@@ -54,17 +71,20 @@ export default function AppsScreen() {
               style={[styles.item, selected && styles.itemSelected]}
               activeOpacity={0.7}
             >
+              <View style={[styles.checkbox, selected && styles.checkboxSelected]} />
+              {iconSource ? (
+                <Image source={iconSource} style={styles.appIcon} resizeMode="contain" />
+              ) : null}
               <Text style={[styles.itemText, selected && styles.itemTextSelected]} numberOfLines={1}>
                 {displayName}
               </Text>
-              {selected ? <Text style={styles.check}>✓</Text> : null}
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       <Button
-        title="Next"
+        title="next →"
         onPress={next}
         disabled={appsToTrack.length === 0}
         style={styles.button}
@@ -74,41 +94,29 @@ export default function AppsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl * 2,
-  },
-  title: {
-    ...typography.title,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: spacing.xl,
-  },
-  list: { gap: spacing.sm, marginBottom: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingBottom: spacing.lg },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surface,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: colors.cardBorder,
+    paddingHorizontal: 0,
+    marginBottom: spacing.sm,
   },
-  itemSelected: {
-    backgroundColor: colors.card,
-    borderColor: colors.primary,
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    backgroundColor: colors.cardGreen,
+    borderWidth: 1,
+    borderColor: colors.cardGreenBorder,
+    marginRight: spacing.md,
   },
-  itemText: { ...typography.body, color: colors.text },
-  itemTextSelected: { fontWeight: '600', color: colors.primary },
-  check: { color: colors.primary, fontSize: 18, fontWeight: '700' },
-  button: { marginTop: 'auto', marginBottom: spacing.xl },
+  checkboxSelected: { backgroundColor: colors.progressGreen, borderColor: colors.progressGreen },
+  appIcon: { width: 28, height: 28, marginRight: spacing.md, borderRadius: 6 },
+  itemText: { ...typography.body, color: colors.text, flex: 1 },
+  itemTextSelected: { fontWeight: '600' },
+  button: { marginTop: 'auto', marginBottom: spacing.xl, borderRadius: 9999 },
   loader: { marginTop: spacing.xxl },
 });

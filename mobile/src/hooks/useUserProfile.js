@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 
 export function useUserProfile() {
   const queryClient = useQueryClient();
-  const { data: session } = useQuery({
+  const sessionQuery = useQuery({
     queryKey: ['auth-session'],
     queryFn: async () => {
       const { data } = await supabase.auth.getSession();
@@ -14,6 +14,7 @@ export function useUserProfile() {
     refetchOnMount: true,
   });
 
+  const session = sessionQuery.data;
   const authUid = session?.user?.id ?? null;
 
   const profileQuery = useQuery({
@@ -29,11 +30,15 @@ export function useUserProfile() {
     queryClient.invalidateQueries({ queryKey: ['user-profile', authUid] });
   };
 
+  const isSessionLoading = sessionQuery.isLoading || sessionQuery.isFetching;
+  const isProfileLoading = profileQuery.isLoading;
+  const isLoading = isSessionLoading || (!!authUid && isProfileLoading);
+
   return {
     session,
     authUid,
     profile: profileQuery.data ?? null,
-    isLoading: profileQuery.isLoading,
+    isLoading,
     error: profileQuery.error,
     refetch: profileQuery.refetch,
     invalidate,
