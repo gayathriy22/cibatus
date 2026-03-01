@@ -13,13 +13,16 @@ BLUEPRINTS = [
     "test",
     "users",
     "api",
+    "edge_test",
+    "admin",
+    "gemini",
 ]
-
 
 def create_app():
     app = Flask(__name__)
     CORS(app, origins=["*"], allow_headers=["Content-Type", "Authorization"])
     load_dotenv()
+    app.config["PROPAGATE_EXCEPTIONS"] = True
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
