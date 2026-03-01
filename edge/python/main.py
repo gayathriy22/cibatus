@@ -5,13 +5,15 @@ import time
 
 from arduino.app_utils import *
 
-API_BASE_URL = "https://380e-128-199-12-13.ngrok-free.app"
+API_BASE_URL = "https://c680-128-199-12-13.ngrok-free.app"
 GET_QUEUE_ENDPOINT = "/edge/get_queue"
 SET_HANDLED_ENDPOINT = "/edge/set_handled"
-POLL_INTERVAL_SECONDS = 30
-PUMP_TYPE_TO_INDEX = {
-    "pure": 0,
-    "light_nutrient": 1,
+POLL_INTERVAL_SECONDS = 5
+ACTION_TO_ID = {
+    "kill": "KILL",
+    "reset_kill": "RESET_KILL",
+    "give_pure": 0,
+    "give_light_nutrient": 1
 }
 
 
@@ -84,6 +86,36 @@ def _arduino_ack_is_success(ack):
     return False
 
 
+def _kill_plant():
+    try:
+        ack = Bridge.call("kill_plant")
+        print(f"[poller] Bridge kill_plant ack: {ack}")
+        return ack
+    except Exception as exc:
+        print(f"[poller] Bridge call failed: {exc}")
+        return None
+
+
+def _reset_kill():
+    try:
+        ack = Bridge.call("reset_kill")
+        print(f"[poller] Bridge reset_kill ack: {ack}")
+        return ack
+    except Exception as exc:
+        print(f"[poller] Bridge call failed: {exc}")
+        return None
+
+
+def _run_pump(duration_ms, action_id):
+    try:
+        ack = Bridge.call("run_pump", duration_ms, action_id)
+        print(f"[poller] Bridge run_pump ack: {ack}")
+        return ack
+    except Exception as exc:
+        print(f"[poller] Bridge call failed: {exc}")
+        return None
+
+
 def _poll_loop():
     while True:
         item = _get_next_queue_item()
@@ -93,8 +125,8 @@ def _poll_loop():
             continue
 
         item_id = item.get("id") if isinstance(item, dict) else None
-        water_type = item.get("water_type") if isinstance(item, dict) else None
-        pump_index = PUMP_TYPE_TO_INDEX.get(water_type)
+        action = item.get("action") if isinstance(item, dict) else None
+        action_id = ACTION_TO_ID.get(action)
         duration_ms = 1000
 
         if item_id is None:
@@ -102,11 +134,16 @@ def _poll_loop():
             time.sleep(POLL_INTERVAL_SECONDS)
             continue
 
-        try:
-            ack = Bridge.call("run_pump", duration_ms, pump_index)
-            print(f"[poller] Bridge run_pump ack: {ack}")
-        except Exception as exc:
-            print(f"[poller] Bridge call failed: {exc}")
+        ack = None
+        if action_id == "KILL":
+            ack = _kill_plant()
+        elif action_id == "RESET_KILL":
+            ack = _reset_kill()
+        else:
+            print(type(duration_ms), duration_ms, type(action_id), action_id)
+            ack = _run_pump(duration_ms, action_id)
+        
+        if ack is None:
             time.sleep(POLL_INTERVAL_SECONDS)
             continue
 

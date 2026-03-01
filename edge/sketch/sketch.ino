@@ -1,11 +1,14 @@
 #include <Arduino_Modulino.h>
 #include <Arduino_RouterBridge.h>
+#include <Servo.h>
 
 ModulinoThermo thermo;
+Servo servo;
 
 // Digital output used to drive the MOSFET gate.
 static const uint8_t PURE_PUMP_PIN = 7;
 static const uint8_t LIGHT_NUTRIENT_PUMP_PIN = 8;
+static const uint8_t SERVO_PIN = 4;
 
 bool _run_pure_pump(int durationMs) {
   digitalWrite(PURE_PUMP_PIN, HIGH);
@@ -18,6 +21,16 @@ bool _run_light_nutrient_pump(int durationMs) {
   digitalWrite(LIGHT_NUTRIENT_PUMP_PIN, HIGH);
   delay(durationMs);
   digitalWrite(LIGHT_NUTRIENT_PUMP_PIN, LOW);
+  return true;
+}
+
+bool kill_plant() {
+  servo.write(100);
+  return true;
+}
+
+bool reset_kill() {
+  servo.write(10);
   return true;
 }
 
@@ -47,10 +60,15 @@ void setup() {
 
   Bridge.begin();
   Bridge.provide("run_pump", run_pump);
+  Bridge.provide("kill_plant", kill_plant);
+  Bridge.provide("reset_kill", reset_kill);
 
   // Set up temp modulino
   Modulino.begin(Wire1);
   thermo.begin();
+
+  // Add the Arduino
+  servo.attach(SERVO_PIN);
 }
 
 void loop() {
